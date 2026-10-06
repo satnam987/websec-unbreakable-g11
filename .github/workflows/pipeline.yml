@@ -9,13 +9,14 @@ permissions:
   contents: read
 
 jobs:
+  # DSOMM: Software Composition Analysis (server side) - L2
   sca:
     name: SCA - Trivy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -23,20 +24,22 @@ jobs:
           exit-code: 1
           ignore-unfixed: true
 
+  # DSOMM: Static analysis for important server side components - L3
   sast:
     name: SAST - Semgrep
     runs-on: ubuntu-latest
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: semgrep scan --config=auto --error --severity=ERROR
 
+  # DSOMM: Test for stored secrets in code - L1
   secrets:
     name: Secret scanning - Gitleaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
