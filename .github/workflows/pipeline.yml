@@ -43,3 +43,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+
+  # Deploy: enkel na geslaagde scans, enkel bij push naar main
+  deploy:
+    name: Deploy to g11
+    runs-on: self-hosted
+    needs: [sca, sast, secrets]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Deploy with docker compose
+        run: |
+          cd ~/websec-unbreakable-g11
+          git pull
+          docker compose up -d --build
