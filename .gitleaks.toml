@@ -1,0 +1,16 @@
+# Eigen Gitleaks-config: standaardregels + extra regel voor wachtwoorden.
+# De standaardregels vonden het databankwachtwoord niet.
+
+title = "websec-unbreakable-g11"
+
+[extend]
+useDefault = true
+
+# Wachtwoord in een connection string, env-variabele, YAML of JSON
+# bv. "...;Password=geheim;..."  of  POSTGRES_PASSWORD: geheim
+[[rules]]
+id = "password-assignment"
+description = "Wachtwoord hardcoded in code of configuratie"
+regex = '''(?i)[\w.-]*(?:password|passwd|pwd)["']?\s*[:=]\s*["']?([^\s"';,]{6,})'''
+secretGroup = 1
+keywords = ["password", "passwd", "pwd"]
