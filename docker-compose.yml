@@ -1,13 +1,15 @@
 services:
   app:
     build: ./app
-    ports:
-      - "8080:8080"
+    # geen "ports" meer: de app is enkel bereikbaar via de WAF
     environment:
       ConnectionStrings__Unbreakable: "Host=db;Port=5432;Database=unbreakable;Username=unbreakable;Password=Unbr3akable!2026"
     depends_on:
       - db
     restart: unless-stopped
+    networks:
+      - default
+      - bw-services
 
   db:
     image: postgres:17
@@ -18,6 +20,60 @@ services:
     volumes:
       - dbdata:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - default
+
+  # WAF: enige ingang van buitenaf (HTTP 80 -> redirect, HTTPS 443)
+  bunkerweb:
+    image: bunkerity/bunkerweb:1.6.15
+    container_name: bunkerweb
+    ports:
+      - "80:8080/tcp"
+      - "443:8443/tcp"
+    environment:
+      API_WHITELIST_IP: "127.0.0.0/8 10.20.30.0/24"
+    restart: unless-stopped
+    networks:
+      bw-services:
+        gw_priority: 1   # IPv6-verkeer komt via dit netwerk binnen -> echt client-IP
+      bw-universe: {}
+
+  bw-scheduler:
+    image: bunkerity/bunkerweb-scheduler:1.6.15
+    container_name: bw-scheduler
+    depends_on:
+      - bunkerweb
+    volumes:
+      - bw-storage:/data   # certificaten blijven bewaard
+    environment:
+      BUNKERWEB_INSTANCES: "bunkerweb"
+      API_WHITELIST_IP: "127.0.0.0/8 10.20.30.0/24"
+      SERVER_NAME: "g11.ipv6.thelastgym.be"
+      USE_IPV6: "yes"
+      DISABLE_DEFAULT_SERVER: "yes"
+      AUTO_LETS_ENCRYPT: "yes"
+      USE_LETS_ENCRYPT_STAGING: "yes"   # eerst testen, daarna op "no"
+      USE_REVERSE_PROXY: "yes"
+      REVERSE_PROXY_URL: "/"
+      REVERSE_PROXY_HOST: "http://app:8080"
+    restart: unless-stopped
+    networks:
+      - bw-universe
 
 volumes:
   dbdata:
+  bw-storage:
+
+networks:
+  bw-universe:
+    name: bw-universe
+    ipam:
+      config:
+        - subnet: 10.20.30.0/24
+  bw-services:
+    name: bw-services
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.20.31.0/24
+        - subnet: fd00:11::/64
