@@ -29,7 +29,7 @@ jobs:
     name: SAST - Semgrep
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.180.0
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: semgrep scan --config=auto --error --severity=ERROR
@@ -50,16 +50,17 @@ jobs:
           tar xzf gl.tgz gitleaks
           ./gitleaks git . --redact -v
 
-  # Deploy: enkel na geslaagde scans, enkel bij push naar main
+  # Deploy: enkel na geslaagde scans, enkel bij push naar main,
+  # en exact de commit die gescand werd (geen git pull)
   deploy:
     name: Deploy to g11
     runs-on: self-hosted
     needs: [sca, sast, secrets]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    concurrency:
+      group: deploy-g11
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Deploy with docker compose
-        run: |
-          cd ~/websec-unbreakable-g11
-          git pull
-          docker compose up -d --build
+        run: docker compose -p websec-unbreakable-g11 up -d --build
