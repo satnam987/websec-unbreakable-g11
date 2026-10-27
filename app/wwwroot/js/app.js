@@ -1,6 +1,7 @@
 // De schermen van Unbreakable. Navigeren gebeurt met het deel na # in de URL.
 
 import { api, currentUser, setUser } from './api.js';
+import { encrypt, decrypt, normalize, computeMac, verifyMac } from './crypto.js';
 
 const app = document.getElementById('app');
 
@@ -142,19 +143,59 @@ async function renderMessage(id) {
     const m = await api.message(id);
 
     app.innerHTML = `
-        <h1>${m.subject}</h1>
+        <h1>${escapeHtml(m.subject)}</h1>
         <dl class="row">
             <dt class="col-sm-2">Van</dt><dd class="col-sm-10">${escapeHtml(m.sender)}</dd>
             <dt class="col-sm-2">Aan</dt><dd class="col-sm-10">${escapeHtml(m.recipient)}</dd>
             <dt class="col-sm-2">Verzonden</dt><dd class="col-sm-10">${formatDate(m.sentAt)}</dd>
+            <dt class="col-sm-2">Codeboek lijn</dt><dd class="col-sm-10">${m.keyLine}</dd>
         </dl>
-        <div class="card mb-3"><div class="card-body message-body" id="body"></div></div>
+
+        <p class="text-muted">Versleuteld in de databank:</p>
+        <div class="card mb-3"><div class="card-body"><code id="cipher"></code></div></div>
+
+        <form id="open" class="mb-3">
+            <div class="form-group">
+                <label for="key">Sleutel (lijn ${m.keyLine} uit je codeboek)</label>
+                <input id="key" class="form-control" autocomplete="off" required />
+            </div>
+            <div class="form-group">
+                <label for="mackey">MAC-sleutel</label>
+                <input id="mackey" class="form-control" autocomplete="off" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Ontsleutelen</button>
+        </form>
+
+        <div id="result"></div>
+
         <p>
             <button id="delete" class="btn btn-outline-danger">Verwijderen</button>
             <a href="#/inbox" class="btn btn-link">Terug naar je inbox</a>
         </p>`;
 
-    document.getElementById('body').textContent = m.body;
+    document.getElementById('cipher').textContent = m.body;
+
+    document.getElementById('open').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const key = document.getElementById('key').value;
+        const macKey = document.getElementById('mackey').value;
+        const result = document.getElementById('result');
+        try {
+            // Eerst de integriteit controleren, dan pas ontsleutelen.
+            const ok = await verifyMac(macKey, m.keyLine, m.body, m.mac);
+            if (!ok) {
+                result.innerHTML = `<div class="alert alert-danger">
+                    MAC klopt niet. Het bericht of het lijnnummer is gewijzigd, of de MAC-sleutel is fout.</div>`;
+                return;
+            }
+            const plain = decrypt(m.body, key);
+            result.innerHTML = `<div class="alert alert-success">MAC OK - integriteit bevestigd.</div>
+                <div class="card mb-3"><div class="card-body message-body" id="plain"></div></div>`;
+            document.getElementById('plain').textContent = plain;
+        } catch (err) {
+            result.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
+        }
+    });
 
     document.getElementById('delete').addEventListener('click', async () => {
         if (confirm('Ben je zeker dat je dit bericht wil verwijderen?')) {
@@ -188,23 +229,62 @@ async function renderNew() {
                         <input id="subject" class="form-control" required maxlength="100" />
                     </div>
                     <div class="form-group">
-                        <label for="text">Bericht</label>
-                        <textarea id="text" class="form-control" rows="6" required maxlength="2000"></textarea>
+                        <label for="text">Bericht (max. 40 tekens, A-Z 0-9 spatie)</label>
+                        <textarea id="text" class="form-control" rows="4" required maxlength="40"></textarea>
+                        <small id="count" class="form-text text-muted"></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="line">Codeboek lijn (oneven/even afspraak met ontvanger)</label>
+                        <input id="line" type="number" min="1" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="key">Sleutel van die lijn</label>
+                        <input id="key" class="form-control" autocomplete="off" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="mackey">MAC-sleutel</label>
+                        <input id="mackey" class="form-control" autocomplete="off" required />
                     </div>
                     <button type="submit" class="btn btn-primary">Versturen</button>
                     <a href="#/inbox" class="btn btn-link">Annuleren</a>
                 </form>
+                <div id="error"></div>
             </div>
         </div>`;
 
+    // Laat zien hoe het bericht er genormaliseerd uitziet (hoofdletters, _ wordt spatie weggelaten).
+    const text = document.getElementById('text');
+    const count = document.getElementById('count');
+    text.addEventListener('input', () => {
+        const n = normalize(text.value);
+        count.textContent = `${n.length}/40 tekens na normalisatie: ${n}`;
+    });
+
     document.getElementById('compose').addEventListener('submit', async (event) => {
         event.preventDefault();
-        await api.send({
-            recipient: document.getElementById('recipient').value.trim(),
-            subject: document.getElementById('subject').value,
-            body: document.getElementById('text').value,
-        });
-        location.hash = '#/inbox';
+        const error = document.getElementById('error');
+        error.innerHTML = '';
+        try {
+            const line = document.getElementById('line').value;
+            const key = document.getElementById('key').value;
+            const macKey = document.getElementById('mackey').value;
+
+            // Versleutelen in de browser. De plain-text verlaat het toestel nooit.
+            const cipher = encrypt(document.getElementById('text').value, key);
+            // MAC over lijnnummer + ciphertext.
+            const mac = await computeMac(macKey, line, cipher);
+
+            await api.send({
+                recipient: document.getElementById('recipient').value.trim(),
+                subject: document.getElementById('subject').value,
+                body: cipher,
+                keyLine: Number(line),
+                mac: mac,
+            });
+            location.hash = '#/inbox';
+        } catch (err) {
+            error.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
+        }
     });
 }
 
