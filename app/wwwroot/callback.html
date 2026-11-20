@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head><meta charset="utf-8" /><title>Inloggen...</title></head>
+<body>
+<p>Bezig met inloggen...</p>
+<script src="lib/oidc-client-ts.js"></script>
+<script type="module">
+    import { userManager } from './js/auth.js';
+    try {
+        await userManager.signinRedirectCallback();
+        location.replace('/#/inbox');
+    } catch (e) {
+        document.body.innerHTML = '<p>Inloggen mislukt: ' + e.message + '</p>';
+    }
+</script>
+</body>
+</html>

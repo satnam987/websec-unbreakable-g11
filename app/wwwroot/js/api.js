@@ -1,17 +1,17 @@
-// Praat met de API. Alles wat de SPA weet, komt van hier.
+// Praat met de API. De identiteit komt uit het access token, niet uit een header
+// die je zelf kan invullen.
 
-const USER_KEY = 'unbreakable_user';
+import { accessToken, currentUser, login, logout } from './auth.js';
 
-export function currentUser() {
-    return localStorage.getItem(USER_KEY);
-}
-
-export function setUser(name) {
-    localStorage.setItem(USER_KEY, name);
-}
+export { currentUser, login, logout };
 
 async function call(method, path, body) {
-    const headers = { 'X-User': currentUser() || '' };
+    const token = await accessToken();
+    if (token === null) {
+        return null;   // we worden doorgestuurd naar de identity provider
+    }
+
+    const headers = { 'Authorization': 'Bearer ' + token };
     const options = { method, headers };
 
     if (body !== undefined) {
@@ -20,6 +20,14 @@ async function call(method, path, body) {
     }
 
     const response = await fetch('/api' + path, options);
+
+    if (response.status === 401) {
+        await login();
+        return null;
+    }
+    if (response.status === 403) {
+        throw new Error('Geen toegang. Die beslissing komt van de autorisatieserver.');
+    }
     if (!response.ok) {
         throw new Error(`${method} ${path} gaf ${response.status}`);
     }
@@ -29,6 +37,7 @@ async function call(method, path, body) {
 }
 
 export const api = {
+    me: () => call('GET', '/me'),
     users: () => call('GET', '/users'),
     inbox: (from) => call('GET', '/messages' + (from ? '?from=' + encodeURIComponent(from) : '')),
     search: (q) => call('GET', '/messages/search?q=' + encodeURIComponent(q)),

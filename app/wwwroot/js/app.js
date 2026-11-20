@@ -1,9 +1,17 @@
 // De schermen van Unbreakable. Navigeren gebeurt met het deel na # in de URL.
 
-import { api, currentUser, setUser } from './api.js';
+import { api, currentUser, login, logout } from './api.js';
 import { encrypt, decrypt, normalize, computeMac, verifyMac } from './crypto.js';
 
 const app = document.getElementById('app');
+
+function toonFout(melding) {
+    const balk = document.createElement('div');
+    balk.className = 'alert alert-danger';
+    balk.textContent = melding;
+    app.prepend(balk);
+}
+window.addEventListener('unhandledrejection', (e) => toonFout(e.reason?.message || 'Er ging iets mis'));
 
 function escapeHtml(text) {
     return String(text)
@@ -22,9 +30,17 @@ function formatDate(value) {
 
 function showWho() {
     const user = currentUser();
-    document.getElementById('who').innerHTML = user
-        ? `Je bent <strong>${escapeHtml(user)}</strong> (<a href="#/">wisselen</a>)`
+    const who = document.getElementById('who');
+    who.innerHTML = user
+        ? `Je bent <strong>${escapeHtml(user)}</strong> (<a href="#" id="afmelden">afmelden</a>)`
         : '';
+    const link = document.getElementById('afmelden');
+    if (link) {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            logout();
+        });
+    }
 }
 
 // ------------------------------------------------------------------ naam kiezen
@@ -41,21 +57,14 @@ function renderLogin() {
                 ${user ? `<p>Je gebruikt Unbreakable als <strong>${escapeHtml(user)}</strong>.
                           <a href="#/inbox">Naar je inbox</a></p>
                           <p>Iemand anders? Vul hieronder een andere naam in.</p>` : ''}
-                <form id="login">
-                    <div class="form-group">
-                        <label for="name">Wie ben je?</label>
-                        <input id="name" class="form-control" placeholder="bijvoorbeeld Anna"
-                               required minlength="2" maxlength="40" />
-                    </div>
-                    <button type="submit" class="btn btn-primary">Verder</button>
-                </form>
+                <p>Je meldt je aan bij de identity provider. Deze app ziet je wachtwoord nooit.</p>
+                <button id="login" class="btn btn-primary">Inloggen met Keycloak</button>
             </div>
         </div>`;
 
-    document.getElementById('login').addEventListener('submit', (event) => {
+    document.getElementById('login').addEventListener('click', (event) => {
         event.preventDefault();
-        setUser(document.getElementById('name').value.trim());
-        location.hash = '#/inbox';
+        login();
     });
 }
 

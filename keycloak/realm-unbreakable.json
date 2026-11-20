@@ -1,0 +1,81 @@
+{
+  "realm": "unbreakable",
+  "enabled": true,
+  "sslRequired": "all",
+  "registrationAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "unbreakable-spa",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://g11.ipv6.thelastgym.be/*"
+      },
+      "redirectUris": [
+        "https://g11.ipv6.thelastgym.be/callback.html"
+      ],
+      "webOrigins": [
+        "https://g11.ipv6.thelastgym.be"
+      ],
+      "protocolMappers": [
+        {
+          "name": "messages-api-aud",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "messages-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "messages-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "alice@unbreakable.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Alice!Test2026",
+          "temporary": false
+        }
+      ],
+      "firstName": "Alice",
+      "lastName": "Devos",
+      "requiredActions": []
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "bob@unbreakable.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Bob!Test2026",
+          "temporary": false
+        }
+      ],
+      "firstName": "Bob",
+      "lastName": "Peeters",
+      "requiredActions": []
+    }
+  ]
+}

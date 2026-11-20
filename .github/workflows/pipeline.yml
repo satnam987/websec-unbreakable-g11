@@ -63,4 +63,4 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Deploy with docker compose
-        run: docker compose -p websec-unbreakable-g11 up -d --build
+        run: docker compose -p websec-unbreakable-g11 -f docker-compose.yml -f docker-compose.opdracht4.yml up -d --build

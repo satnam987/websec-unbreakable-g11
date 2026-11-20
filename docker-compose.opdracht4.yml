@@ -1,0 +1,82 @@
+services:
+  keycloak-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD}
+    volumes: [kcdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+    networks: [default]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_HOSTNAME: https://g11.ipv6.thelastgym.be/auth
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+    volumes:
+      - ./keycloak/realm-unbreakable.json:/opt/keycloak/data/import/realm-unbreakable.json:ro
+    depends_on: [keycloak-db]
+    restart: unless-stopped
+    networks: [default, bw-services]
+
+  openfga-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: openfga
+      POSTGRES_USER: openfga
+      POSTGRES_PASSWORD: ${FGA_DB_PASSWORD}
+    volumes: [fgadata:/var/lib/postgresql/data]
+    restart: unless-stopped
+    networks: [default]
+
+  openfga-migrate:
+    image: openfga/openfga:v1.8.0
+    command: migrate
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${FGA_DB_PASSWORD}@openfga-db:5432/openfga?sslmode=disable
+    depends_on: [openfga-db]
+    restart: on-failure
+    networks: [default]
+
+  openfga:
+    image: openfga/openfga:v1.8.0
+    container_name: openfga
+    command: run
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${FGA_DB_PASSWORD}@openfga-db:5432/openfga?sslmode=disable
+      OPENFGA_AUTHN_METHOD: preshared
+      OPENFGA_AUTHN_PRESHARED_KEYS: ${FGA_API_TOKEN}
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+    depends_on: [openfga-migrate]
+    restart: unless-stopped
+    networks: [default]
+
+  app:
+    environment:
+      Oidc__Authority: "https://g11.ipv6.thelastgym.be/auth/realms/unbreakable"
+      Oidc__Audience: "messages-api"
+      Logging__LogLevel__Microsoft.AspNetCore.Authentication: "Debug"
+      Oidc__MetadataAddress: "http://keycloak:8080/auth/realms/unbreakable/.well-known/openid-configuration"
+      Fga__ApiUrl: "http://openfga:8080"
+      Fga__ApiToken: "${FGA_API_TOKEN}"
+      Fga__StoreId: "${FGA_STORE_ID}"
+      Fga__ModelId: "${FGA_MODEL_ID}"
+    depends_on: [db, keycloak, openfga]
+
+volumes:
+  kcdata:
+  fgadata:

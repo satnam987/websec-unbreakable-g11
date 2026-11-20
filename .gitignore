@@ -6,3 +6,5 @@ obj/
 *.suo
 .env
 codeboek.txt
+docker-compose.yml.bak
+*.bak

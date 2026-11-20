@@ -11,4 +11,5 @@ public class UnbreakableContext : DbContext
     }
 
     public DbSet<Message> Messages { get; set; }
+    public DbSet<AppUser> Users { get; set; }
 }
